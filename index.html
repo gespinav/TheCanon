@@ -865,10 +865,10 @@ const firebaseConfig = {
               localStorage.setItem('canon_my_scores_v1', JSON.stringify(cleanScores));
             }
           } else {
-            // First-time login — push local data to cloud (no email field)
-            const localSeen   = JSON.parse(localStorage.getItem('canon_seen_v1')      || '[]');
-            const localScores = JSON.parse(localStorage.getItem('canon_my_scores_v1') || '{}');
-            await userRef.set({ seen: localSeen, scores: localScores, createdAt: Date.now() });
+            // First-time login — sanitize then push local data to cloud (no email field)
+            const localSeen   = sanitizeCloudSeen(JSON.parse(localStorage.getItem('canon_seen_v1')      || '[]'));
+            const localScores = sanitizeCloudScores(JSON.parse(localStorage.getItem('canon_my_scores_v1') || '{}'));
+            await userRef.set({ seen: localSeen, scores: Object.assign({}, localScores), createdAt: Date.now() });
           }
 
           // Real-time listener for cross-device sync
@@ -924,6 +924,19 @@ const firebaseConfig = {
 </script>
 
 <script>
+// ── SECURITY HELPERS ─────────────────────────────────────────────
+function escHtml(s){
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+function safeTmdbUrl(url){
+  if(!url) return '#';
+  try{ const u=new URL(url); return(u.protocol==='https:'||u.protocol==='http:')?url:'#'; }
+  catch{ return '#'; }
+}
+
 // ── INFLATION MULTIPLIERS (to 2026 USD) ─────────────────────────
 // CPI-based approximate multipliers from each year's dollar to 2026 dollar
 // Using Bureau of Labor Statistics CPI data, projected to 2026
@@ -1789,7 +1802,7 @@ async function renderStreamingAsync(d) {
   if (cached) {
     target.innerHTML = `
       <div class="stream-grid">${renderStreamPills(cached.services)}</div>
-      <div class="stream-note">Live via TMDB (JustWatch US) · cached · <a href="${cached.tmdbLink || '#'}" target="_blank" rel="noopener" style="color:var(--gold2);">View on TMDB →</a></div>`;
+      <div class="stream-note">Live via TMDB (JustWatch US) · cached · <a href="${safeTmdbUrl(cached.tmdbLink)}" target="_blank" rel="noopener" style="color:var(--gold2);">View on TMDB →</a></div>`;
     return;
   }
 
@@ -1810,7 +1823,7 @@ async function renderStreamingAsync(d) {
   cacheSet(d.id, result);
   target.innerHTML = `
     <div class="stream-grid">${renderStreamPills(result.services)}</div>
-    <div class="stream-note">Live via TMDB (JustWatch US) · updated ${new Date().toLocaleDateString()} · <a href="${result.tmdbLink}" target="_blank" rel="noopener" style="color:var(--gold2);">View on TMDB →</a></div>`;
+    <div class="stream-note">Live via TMDB (JustWatch US) · updated ${new Date().toLocaleDateString()} · <a href="${safeTmdbUrl(result.tmdbLink)}" target="_blank" rel="noopener" style="color:var(--gold2);">View on TMDB →</a></div>`;
 }
 
 // Legacy shim — some code may still call getStreaming synchronously.
@@ -5402,11 +5415,12 @@ function getMyScore(id){ return MY_SCORES[id] != null ? MY_SCORES[id] : null; }
 function setMyScore(id, val){
   if(val === null || val === '' || isNaN(val)){
     delete MY_SCORES[id];
-  if(window.CANON_AUTH&&window.CANON_AUTH.user&&window.CANON_AUTH.pushToCloud)window.CANON_AUTH.pushToCloud();} else {
+  } else {
     const clamped = Math.min(100, Math.max(0, Math.round(Number(val))));
     MY_SCORES[id] = clamped;
   }
   saveMyScores(MY_SCORES);
+  if(window.CANON_AUTH&&window.CANON_AUTH.user&&window.CANON_AUTH.pushToCloud)window.CANON_AUTH.pushToCloud();
   updateMyScoreCount();
   // Update card badge if visible
   const card = document.querySelector('.card[data-id="'+id+'"]');
@@ -6012,7 +6026,7 @@ function renderAuthModal(){
     content.innerHTML = `
       <div class="auth-signed-display">
         <div class="auth-signed-icon">✓</div>
-        <div class="auth-signed-email">${ca.user.email}</div>
+        <div class="auth-signed-email">${escHtml(ca.user.email)}</div>
         <div class="auth-signed-meta"><span class="auth-sync-dot"></span> Cloud sync active</div>
         <div class="auth-stats-row">
           <div class="auth-stat"><div class="auth-stat-n">${seenCount}</div><div class="auth-stat-l">Titles Seen</div></div>
@@ -6052,7 +6066,12 @@ function renderAuthModal(){
 
 function showAuthMsg(msg, type){
   const el = document.getElementById('authMessage');
-  if(el) el.innerHTML = `<div class="auth-msg auth-msg-${type}">${msg}</div>`;
+  if(!el) return;
+  const div = document.createElement('div');
+  div.className = `auth-msg auth-msg-${type}`;
+  div.textContent = msg;
+  el.textContent = '';
+  el.appendChild(div);
 }
 
 async function doSignIn(){
@@ -6120,7 +6139,7 @@ window.updateAuthUI = function updateAuthUI(){
   const ca = window.CANON_AUTH || {};
   if(ca.user) {
     btn.classList.add('auth-btn-signed');
-    label.innerHTML = `<span class="auth-user-email">${ca.user.email.split('@')[0]}</span>`;
+    label.innerHTML = `<span class="auth-user-email">${escHtml(ca.user.email.split('@')[0])}</span>`;
     icon.textContent = '✓';
   } else {
     btn.classList.remove('auth-btn-signed');
