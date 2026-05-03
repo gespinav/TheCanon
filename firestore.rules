@@ -1,0 +1,19 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Per-user document: only the verified owner can read/write their own doc.
+    // 1.1.5: email verification required. The client (_canonAuthFns.signUp /
+    // signIn) signs unverified users out before they can reach Firestore;
+    // this rule is the server-side enforcement layer that catches anything
+    // that bypasses the client check.
+    match /users/{userId} {
+      allow read, write: if request.auth != null
+                         && request.auth.uid == userId
+                         && request.auth.token.email_verified == true;
+    }
+    // Default deny everything else.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

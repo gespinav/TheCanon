@@ -1,0 +1,24 @@
+{
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/.*/**",
+      ".git/**",
+      ".claude/**",
+      ".firebase/**",
+      "**/node_modules/**",
+      "index.html.bak.*",
+      "index.html.pre-*",
+      "*.md",
+      "firestore.rules",
+      "firestore.indexes.json",
+      "google-cloud-sdk/**"
+    ]
+  }
+}
