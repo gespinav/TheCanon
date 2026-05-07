@@ -108,6 +108,63 @@ reCAPTCHA domain allowlist, API key restrictions, billing budget.
 The reCAPTCHA secret-key mismatch surfaced and was fixed during
 Phase D testing of 1.1.5.
 
+## Step 1.1.1 — Stored XSS in user-generated reviews (2026-05-07)
+
+**Severity: CRITICAL.** Active exploitability was created on 2026-05-02
+when we added written `reviews` to the Firestore sync as part of fixing
+the cross-device sync bug. Without escaping, a poisoned cloud doc could
+execute arbitrary script on any device that pulled it. Discovered by
+reading the strategic plan after-the-fact; closed same day.
+
+### Automated controls (verified by this run)
+
+| Control | Status | Evidence |
+|---|---|---|
+| `escapeHtml(s)` helper added | ✅ | line ~6467 |
+| `escapeHtml` applied at 8 review-rendering sites | ✅ | textarea (renderReviewForm), date/byline/firstChar/restText (renderMyReviewsCarousel), 3 paragraph sites + date + byline (renderNewspaperPage) |
+| `sanitizeCloudReviews` cap tightened from 50000 → 8000 chars | ✅ | line ~6494 area |
+| Storage cap on raw input (8000 chars) | ✅ | `submitReview`, `<textarea maxlength="8000">` |
+| Paragraph cap on prose (40 paragraphs) | ✅ | `submitReview` after `generateNewspaperReview` |
+| `saveEditedNewspaper` reads via `.textContent` (auto-decodes) | ✅ | already safe by design |
+| Inline scripts parse | ✅ | 2/0 |
+| Manual XSS payload test (`<img src=x onerror=...>` rendered as text on fresh + after-cloud-pull) | ✅ | User confirmed |
+
+## Step 1.1.6 — Password policy too permissive (2026-05-07)
+
+**Severity: MEDIUM.** Server-side enforcement via Firebase Auth Identity
+Platform admin config. Client-side strength meter + HIBP k-anonymity
+breach check.
+
+### Automated controls (verified by this run)
+
+| Control | Status | Evidence |
+|---|---|---|
+| Server-side password policy ENFORCE (min 10, lower+upper+digit) | ✅ | PATCH `https://identitytoolkit.googleapis.com/admin/v2/projects/canon-ede82/config` returned policy in ENFORCE state, `lastUpdateTime: 2026-05-07T17:12:42.304237Z` |
+| `forceUpgradeOnSignin: false` (existing users not locked out) | ✅ | default; existing weak-password users can still sign in |
+| Client minlength bumped 8 → 10 on signup tab | ✅ | `minlength="${tab==='signin'?8:10}"` |
+| Strength meter UI (bar + 4 checks) | ✅ | `auth-pw-meter` block with `pwCheck-len/lower/upper/digit` |
+| `passwordStrength()` helper + common-password blacklist | ✅ | `CANON_COMMON_PASSWORDS` Set; 5-tier score 0-4 |
+| `hibpCheck()` k-anonymity SHA-1 prefix lookup | ✅ | calls `https://api.pwnedpasswords.com/range/{prefix}`, fail-open on errors |
+| `doSignUp` gates on score ≥ 2 AND not breached | ✅ | strength + hibp checks before `_canonAuthFns.signUp` |
+| `auth/password-does-not-meet-requirements` error code handled | ✅ | server-side rejection mapped to user-readable message |
+| Manual UI test (weak rejected, common rejected, strong accepted, breached rejected) | ✅ | User confirmed |
+
+### Notes
+
+- HIBP fail-open: if `api.pwnedpasswords.com` is unreachable, sign-up proceeds. Strength check still applies.
+- Going with inline strength meter (not zxcvbn library): zxcvbn is 821KB uncompressed — adds ~140KB gzipped to every page load. Inline meter is ~80 lines, covers the same UX surface, and HIBP is the actual breach-DB check.
+
+## Files updated (cumulative through 2026-05-07)
+
+| File | Size | sha256 | Latest change |
+|---|---|---|---|
+| `index.html` | 2,109,437 | `d99bd5e838e7f0e4ac4c34994a44bb15401f4201cd3986f9e8b196d0a99f0515` | 1.1.1 escapeHtml + 1.1.6 strength/HIBP |
+| `firestore.rules` | 757 | `c680ea80f7fe59f3eace8c4ff4950adcb44950a4f77f0d480dc694110deeea63` | unchanged since 1.1.5 |
+
 ## Next step
 
-Step 1.1.6 — whichever the strategic plan names as next.
+See `canon-status-2026-05-07.md` for the comprehensive what's-done /
+what's-left guide. The next priority items per the strategic plan are
+1.1.7 (account deletion — HIGH, App Store legal blocker) and 1.1.2
+(Content Security Policy — HIGH, biggest XSS mitigation now that escape
+is the only defense).
