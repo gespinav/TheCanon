@@ -192,18 +192,72 @@ exfiltration / script-loading paths an attacker needs.
   response header, which GitHub Pages doesn't support. Cloudflare
   Workers in front (Phase 2 backend) would unlock this.
 
+## Step 1.1.3 — TMDB API key in localStorage / URL (2026-05-07)
+
+**Severity: HIGH.** Closed by **removal**, not by proxying.
+
+### Investigation finding
+
+When scoping this step we discovered the TMDB integration in the
+codebase was **dead code** — `getStreamingPlaceholderHTML(d)` defined
+but never called, `data-stream-target="${d.id}"` queried but never
+rendered into HTML, `getStreaming(id)` defined but no callers. The
+streaming feature was scaffolded but never wired into the modal.
+Posters use a separate Wikipedia REST API pipeline (see `loadPoster`,
+`POSTER_OVERRIDES`); TMDB was never used for posters.
+
+User confirmed the streaming feature was not needed. This made 1.1.3
+a removal rather than a refactor: no Cloudflare Worker proxy, no
+TMDB v4 token, no monetization-tier complications.
+
+### Automated controls (verified by this run)
+
+| Control | Status | Evidence |
+|---|---|---|
+| TMDB code removed from `index.html` (-256 lines) | ✅ | `grep -nE 'TMDB\|themoviedb\|tmdb'` returns no matches |
+| `STREAM_SVCS`, `TMDB_PROVIDER_MAP`, `mapTmdbProvider`, `STREAM_CACHE`, `fetchStreamingFromTMDB`, `getStreamingPlaceholderHTML`, `renderStreamPills`, `renderStreamingAsync`, `getStreaming`, `getTmdbKey`/`setTmdbKey` all gone | ✅ | gone with the block deletion |
+| `canon_tmdb_key` localStorage key no longer set/read | ✅ | code path removed |
+| CSP `connect-src` no longer includes `https://api.themoviedb.org` | ✅ | meta tag |
+| CSP `img-src` no longer includes `https://image.tmdb.org` | ✅ | meta tag |
+| CSP `connect-src` ADDS `https://en.wikipedia.org` (poster API) | ✅ | meta tag |
+| CSP `img-src` ADDS `https://upload.wikimedia.org` (poster images) | ✅ | meta tag |
+| Inline scripts parse | ✅ | 2/0 |
+| Manual UI test: posters load on fresh modal opens (no cache hit) | ✅ | User confirmed |
+
+### Why CSP needed Wikipedia hosts (gap caught by 1.1.3 testing)
+
+The 1.1.2 CSP shipped earlier today had `image.tmdb.org` in `img-src`
+but NOT `upload.wikimedia.org` — so Wikipedia-sourced poster loads
+were silently CSP-blocked from 1.1.2 deploy until this 1.1.3 deploy.
+The 1.1.2 manual test plan (8 user flows) didn't include opening a
+fresh film modal, which is why this wasn't caught immediately. Tests
+that rely on cache hits can mask CSP allowlist gaps — note for future
+CSP changes: explicitly test cache-busted paths.
+
+### Worker / Cloudflare deferred
+
+The `worker/` scaffolding (Cloudflare Worker code + deploy README)
+that was created earlier in this session was **deleted** before deploy.
+If a serverless backend is needed later (e.g., for Trakt OAuth, share
+cards, or a re-introduced streaming feature with paid TMDB), the
+worker pattern is the model to start from — see git history for the
+deleted code.
+
 ## Files updated (cumulative through 2026-05-07)
 
 | File | Size | sha256 | Latest change |
 |---|---|---|---|
-| `index.html` | 2,110,659 | `eedbeb2ccbaa3cd389195ce91c60007ed9974a6148622fcba7e0e357bc8397bd` | 1.1.2 CSP meta tag added |
+| `index.html` | 2,098,838 | `4b1292e8e43615c01bd99996df46c25f2709a3d1088edc6506c767cabf66d81e` | 1.1.3 — TMDB code removed; CSP swaps TMDB hosts for Wikipedia/Wikimedia |
 | `firestore.rules` | 757 | `c680ea80f7fe59f3eace8c4ff4950adcb44950a4f77f0d480dc694110deeea63` | unchanged since 1.1.5 |
 
 ## Next step
 
-See `canon-status-2026-05-07.md` for the comprehensive what's-done /
-what's-left guide. With 1.1.2 closed, the remaining §1.1 items by
-pure security severity are: **1.1.3** (TMDB API key, HIGH), **1.1.7**
-(account deletion, HIGH legal blocker), **1.1.8** (data export,
-MEDIUM legal). 1.1.2 Phase 2 (refactor inline handlers, drop
-`'unsafe-inline'` for scripts) tracked as a follow-up.
+With 1.1.3 closed by removal, the remaining §1.1 items are:
+- **1.1.7** (account deletion, HIGH — Apple legal blocker, ~1 day)
+- **1.1.8** (data export, MEDIUM legal — GDPR/CCPA, ~½ day)
+- **1.1.2 Phase 2** (refactor ~91 inline handlers; drop `'unsafe-inline'` for scripts) — LOW security improvement, multi-day refactor
+
+Pre-existing issues (not §1.1, but flagged by strategic plan):
+- `manifest.json` and `apple-touch-icon`/`icon-*` PWA assets are
+  referenced in the HTML but never uploaded to GitHub Pages → 404s.
+  Tracked as Phase 2 of the roadmap (production infrastructure).
