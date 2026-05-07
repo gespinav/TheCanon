@@ -154,17 +154,56 @@ breach check.
 - HIBP fail-open: if `api.pwnedpasswords.com` is unreachable, sign-up proceeds. Strength check still applies.
 - Going with inline strength meter (not zxcvbn library): zxcvbn is 821KB uncompressed — adds ~140KB gzipped to every page load. Inline meter is ~80 lines, covers the same UX surface, and HIBP is the actual breach-DB check.
 
+## Step 1.1.2 — Content Security Policy (2026-05-07)
+
+**Severity: HIGH.** XSS mitigation layer behind `escapeHtml`. Even if
+escaping is bypassed somewhere in the future, CSP would block the
+exfiltration / script-loading paths an attacker needs.
+
+### Automated controls (verified by this run)
+
+| Control | Status | Evidence |
+|---|---|---|
+| `Content-Security-Policy` meta tag in `<head>` | ✅ | line 5 |
+| `default-src 'self'` (restrictive fallback) | ✅ | meta content |
+| `connect-src` allowlist covers: `*.googleapis.com`, `*.firebaseio.com`, `*.firebaseapp.com`, `www.google.com`, `api.themoviedb.org`, `api.pwnedpasswords.com` | ✅ | meta content |
+| `img-src` allowlist: `'self' data: blob: image.tmdb.org` | ✅ | meta content |
+| `frame-src` allowlist: `www.google.com` (reCAPTCHA challenge), `canon-ede82.firebaseapp.com` (Firebase auth popup if used) | ✅ | meta content |
+| `script-src` allowlist external: `gstatic.com` (Firebase SDK), `www.google.com` (reCAPTCHA api.js) | ✅ | meta content |
+| `object-src 'none'` (block plugins) | ✅ | meta content |
+| `base-uri 'self'` (prevent base-tag injection) | ✅ | meta content |
+| `form-action 'self'` (forms can only post same-origin) | ✅ | meta content |
+| `upgrade-insecure-requests` | ✅ | meta content |
+| Inline scripts parse | ✅ | 2/0 |
+| Manual test: 8 user flows (sign-in, sign-up + HIBP, score update, review submit, full sync round-trip) all clean, no CSP violations in console | ✅ | User confirmed |
+
+### Pragmatic compromises (with follow-up tracked)
+
+- **`script-src 'unsafe-inline'`** is allowed because the app has ~91 inline
+  event handlers (`onclick`, `oninput`, `onsubmit`) embedded in dynamic
+  HTML templates. Refactoring all 91 to `addEventListener` is a multi-day
+  refactor — tracked as **1.1.2 Phase 2 follow-up**. Once done, drop
+  `'unsafe-inline'` and add SHA-256 hashes for the 2 inline `<script>`
+  blocks to fully close the inline-injection vector.
+- **`style-src 'unsafe-inline'`** is needed for dynamic styles in templates
+  and the password meter UI. Plan accepts this.
+- **`frame-ancestors`** is intentionally omitted — meta-tag CSP can't
+  enforce it. To enable clickjacking protection, would need an HTTP
+  response header, which GitHub Pages doesn't support. Cloudflare
+  Workers in front (Phase 2 backend) would unlock this.
+
 ## Files updated (cumulative through 2026-05-07)
 
 | File | Size | sha256 | Latest change |
 |---|---|---|---|
-| `index.html` | 2,109,437 | `d99bd5e838e7f0e4ac4c34994a44bb15401f4201cd3986f9e8b196d0a99f0515` | 1.1.1 escapeHtml + 1.1.6 strength/HIBP |
+| `index.html` | 2,110,659 | `eedbeb2ccbaa3cd389195ce91c60007ed9974a6148622fcba7e0e357bc8397bd` | 1.1.2 CSP meta tag added |
 | `firestore.rules` | 757 | `c680ea80f7fe59f3eace8c4ff4950adcb44950a4f77f0d480dc694110deeea63` | unchanged since 1.1.5 |
 
 ## Next step
 
 See `canon-status-2026-05-07.md` for the comprehensive what's-done /
-what's-left guide. The next priority items per the strategic plan are
-1.1.7 (account deletion — HIGH, App Store legal blocker) and 1.1.2
-(Content Security Policy — HIGH, biggest XSS mitigation now that escape
-is the only defense).
+what's-left guide. With 1.1.2 closed, the remaining §1.1 items by
+pure security severity are: **1.1.3** (TMDB API key, HIGH), **1.1.7**
+(account deletion, HIGH legal blocker), **1.1.8** (data export,
+MEDIUM legal). 1.1.2 Phase 2 (refactor inline handlers, drop
+`'unsafe-inline'` for scripts) tracked as a follow-up.
