@@ -362,7 +362,7 @@ this pass mops up the remaining items.
 |---|---|---|
 | Review notes (`raw`) — length cap 8KB | ✅ done in 1.1.1 | `submitReview` slice(0, 8000) + `<textarea maxlength="8000">` |
 | Review notes (`raw`) — control-char strip | ✅ done in 1.2 | `stripControlChars()` applied in `submitReview` and `sanitizeCloudReviews` |
-| Review notes (`raw`) — UTF-8 validation | ⚠ deferred | low realistic risk; lone surrogates are written through. Could add later via `String.fromCodePoint(...).replace(...)` if abuse appears. |
+| Review notes (`raw`) — UTF-8 validation | ✅ done in 1.2 (end-of-session) | `stripControlChars` extended to replace lone UTF-16 surrogates (high or low) with U+FFFD. Smoke-tested: emoji surrogate pairs preserved, orphans replaced. Prevents Firestore writes from failing on invalid UTF-8 |
 | Edited `prose` — same caps + control-char strip | ✅ | derived from `raw` so inherits caps; cloud sanitizer applies strip independently |
 | Edited `prose` — never via `innerHTML` | ⚠ mitigated by 1.1.1 `escapeHtml`, not refactored to `textContent` | strict refactor would close 1.1.2 Phase 2 too; deferred |
 | Reviewer byline — escape on render | ✅ done in 1.1.1 | `escapeHtml(byline)` at all 3 render sites |
@@ -412,14 +412,34 @@ this pass mops up the remaining items.
 
 The app is now legally and security-wise launchable for §1.1's scope.
 
-## Deferred / next-priority
+## 1.1.2 Phase 2 — closed as "won't fix at current scale" (2026-05-07)
 
-- **1.1.2 Phase 2** — refactor ~91 inline event handlers to `addEventListener`,
-  then drop `'unsafe-inline'` from `script-src`. LOW security improvement
-  (incremental hardening), multi-day refactor. No urgency since the
-  current CSP still helps.
-- **§1.2 UTF-8 lone-surrogate handling** — deferred; low realistic risk.
-- **§1.2 prose-via-innerHTML refactor** — deferred; mitigated by escapeHtml; full refactor overlaps with 1.1.2 Phase 2.
+After scoping the work, decided not to pursue the inline-handler refactor at this stage. Documenting the rationale here so a future agent or revisit doesn't re-propose without context.
+
+**The work would be:**
+- Refactor ~91 inline event handlers (`onclick`, `oninput`, `onsubmit`, `onkeydown`, `onchange`) into a delegated event listener via `data-action="..."` attributes on elements.
+- Either hash the 2 inline `<script>` blocks (~330 + ~7000 lines) and add `'sha256-...'` to CSP `script-src`, OR extract to external `.js` files.
+- Drop `'unsafe-inline'` from `script-src`.
+
+**Why deferred:**
+
+- **Current state already provides meaningful XSS protection.** `escapeHtml` is applied at all 8 review-render sites that interpolate user data. The CSP locks down `connect-src`, `img-src`, `frame-src`, `object-src`, `base-uri`, `form-action`. The only weakness is `script-src 'unsafe-inline'`.
+- **Attack surface is small.** User-controlled data only flows through reviews (`raw`/`prose`/`byline`) and the byline. All escape-hardened.
+- **Maintenance cost doesn't fit current workflow.** Hash recomputation (Option A) breaks the page on every inline-script edit; the user uploads `index.html` via GitHub web UI and edits inline scripts often. External-file extraction (Option B) adds multi-file upload friction.
+- **Pre-launch scale doesn't justify the cost.** No paid users, no special-category data, no compliance audit demanding it.
+
+**Revisit triggers:**
+- Monetization launches (paid users → higher attacker incentive)
+- App handles special-category data (health, financial, etc.)
+- Audit/certification (SOC 2, ISO 27001) demands strict CSP
+- An XSS finding in code review reveals an `escapeHtml` gap
+- App Store reviewer specifically flags CSP `'unsafe-inline'`
+
+If the app moves to a build pipeline (Phase 2 backend / Phase 3 native shell), revisiting becomes much cheaper because the build step can compute hashes automatically.
+
+## Deferred / next-priority (everything else)
+
+- **§1.2 prose-via-innerHTML refactor** — deferred; mitigated by escapeHtml; would have overlapped with 1.1.2 Phase 2 (now closed-as-deferred).
 - **§1.3 UX refinements** — 7 items including the Canon Card share-sheet (highest-leverage growth feature per plan). Not security; affects retention.
 - **Strategic plan Phase 2** (production infrastructure): backend, manifest.json + PWA assets upload, observability, CI/CD.
 - **Strategic plan Phase 3** (native shell): Capacitor wrapper, Sign in with Apple, push notifications. Required for App Store submission alongside the §1.1 work that just closed.
