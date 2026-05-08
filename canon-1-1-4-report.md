@@ -299,27 +299,84 @@ special-category data.
   next time it opens. That's a subtle regression risk in any future
   edits to the auth modal.
 
+## Step 1.1.8 — Data export path (2026-05-07)
+
+**Severity: MEDIUM (legal — GDPR Art. 20 / CCPA right-to-portability).**
+Closes the last remaining §1.1 item.
+
+### Automated controls (verified by this run)
+
+| Control | Status | Evidence |
+|---|---|---|
+| `function buildUserDataExport()` bundles account metadata + cloud-synced data + byline | ✅ | line ~8867 |
+| Output schema includes `exportedAt`, `exportSchemaVersion`, `account`, `byline`, `data` | ✅ | with `account.uid`, `email`, `emailVerified`, `creationTime`, `lastSignInTime` |
+| `function doDataExport()` triggers download via `Blob` + `URL.createObjectURL` + temporary `<a download>` click | ✅ | line ~8891 |
+| Filename pattern: `canon-export-<emailPrefix>-<YYYY-MM-DD>.json` | ✅ | sanitized for filesystem safety |
+| `URL.revokeObjectURL` cleanup after click (no memory leak) | ✅ | 100ms setTimeout |
+| "Download my data" link added to auth modal signed-in main view (between Sign Out and Delete) | ✅ | line ~8655, neutral grey color (not red) |
+| Inline scripts parse | ✅ | 2/0 |
+| Manual UI test: download → JSON file → fields match user's actual data | ✅ | User confirmed |
+
+### Notes
+
+- Pure client-side bundling — reads in-memory `SEEN`, `MY_SCORES`, `MY_REVIEWS` plus `auth.currentUser.metadata`. No new fetch endpoints, no CSP changes needed.
+- `exportSchemaVersion: 1` lets future changes evolve the schema while keeping older exports parseable.
+- Filename's `emailPrefix` is sanitized to `[a-zA-Z0-9-]` to keep it filesystem-safe.
+
+## Bonus fixes (2026-05-07, end-of-session)
+
+Two small UI/UX fixes applied alongside 1.1.8:
+
+### Poster cache version bump (`v8 → v9`)
+
+**Symptom:** A handful of film posters (Godfather, Best Years of Our Lives, Lord of the Rings: ROTK, possibly others) failed to load even after 1.1.3 fixed the Wikipedia/Wikimedia CSP allowlist.
+
+**Root cause:** During the ~2-hour window between the 1.1.2 baseline deploy (CSP without Wikipedia hosts) and the 1.1.3 deploy (CSP with Wikipedia hosts), any modal opened by a user triggered Wikipedia REST API and image fetches that were CSP-blocked. The poster loader cached those failures as `miss` entries with a 7-day TTL — meaning even after CSP was fixed, those titles would silently 404 from cache for 7 days.
+
+**Fix:** `POSTER_CACHE_KEY` bumped from `'canon_poster_cache_v8'` to `'canon_poster_cache_v9'` (line ~6810). All users get a one-time refetch of all posters; misses cached during the broken window are gone.
+
+**Lesson for future CSP changes:** If a CSP edit changes `connect-src` or `img-src` allowlists for endpoints used by a cache-miss-aware loader, bump that loader's cache version too.
+
+### Weighted Contribution UI: percentage labels removed
+
+User feedback: the percentage suffixes in labels like "Institutional (23%)", "Box Office (15%)" were redundant given the visual bar fills already encode the contribution.
+
+**Fix:** Lines 6683-6688 — stripped `(23%)`, `(22%)`, `(15%)`, `(20%)`, `(10%)` parentheticals from the six label spans for both film and TV variants. Bar widths and `+N` contribution values unchanged.
+
 ## Files updated (cumulative through 2026-05-07)
 
 | File | Size | sha256 | Latest change |
 |---|---|---|---|
-| `index.html` | 2,107,618 | `854603a561a09d374f377bc321ac7186f5511404c18e707d9a9989af21a68d18` | 1.1.7 — account deletion path |
+| `index.html` | 2,109,868 | `15844f76b5a1e1457e9eeba44d5a9f525c9d847c4e3117b16abdb9945e17baea` | 1.1.8 + poster cache v9 + UI cleanup |
 | `firestore.rules` | 757 | `c680ea80f7fe59f3eace8c4ff4950adcb44950a4f77f0d480dc694110deeea63` | unchanged since 1.1.5 |
 
-## Next step
+## §1.1 status — DONE (8 of 8 closed)
 
-With 1.1.7 closed, only one §1.1 item remains:
-- **1.1.8** (data export, MEDIUM legal — GDPR Art. 20 / CCPA, ~½ day)
+| # | Severity | Closed |
+|---|---|---|
+| 1.1.1 — Stored XSS in user-generated reviews | CRITICAL | 2026-05-07 |
+| 1.1.2 — No Content Security Policy | HIGH | 2026-05-07 |
+| 1.1.3 — TMDB API key in localStorage / URL | HIGH | 2026-05-07 (closed by removal) |
+| 1.1.4 — Firebase config defense-in-depth | MEDIUM | 2026-05-02 |
+| 1.1.5 — No email verification before cloud sync | MEDIUM | 2026-05-02 |
+| 1.1.6 — Password policy too permissive | MEDIUM | 2026-05-07 |
+| 1.1.7 — No account deletion path | HIGH (legal) | 2026-05-07 |
+| 1.1.8 — No data-export path | MEDIUM (legal) | 2026-05-07 |
 
-Plus the deferred follow-up:
-- **1.1.2 Phase 2** (refactor ~91 inline handlers; drop `'unsafe-inline'` for scripts) — LOW security improvement, multi-day refactor
+The app is now legally and security-wise launchable for §1.1's scope.
 
-After 1.1.8, **all of §1.1 will be closed** and the app will be ready
-for App Store submission (legally and security-wise) modulo the
-1.1.2 Phase 2 hardening and Phase 2-3 of the broader roadmap (backend
-infrastructure, native shell).
+## Deferred / next-priority
 
-Pre-existing issues (not §1.1, but flagged by strategic plan):
+- **1.1.2 Phase 2** — refactor ~91 inline event handlers to `addEventListener`,
+  then drop `'unsafe-inline'` from `script-src`. LOW security improvement
+  (incremental hardening), multi-day refactor. No urgency since the
+  current CSP still helps.
+- **§1.2 Data validation gaps** — partial; still open: control-char strip on review notes, byline length cap (currently 200, plan wants 40), `localStorage` quota handling, URL param allowlist. Not blockers.
+- **§1.3 UX refinements** — 7 items including the Canon Card share-sheet (highest-leverage growth feature per plan). Not security; affects retention.
+- **Strategic plan Phase 2** (production infrastructure): backend, manifest.json + PWA assets upload, observability, CI/CD.
+- **Strategic plan Phase 3** (native shell): Capacitor wrapper, Sign in with Apple, push notifications. Required for App Store submission alongside the §1.1 work that just closed.
+
+Pre-existing issue (not §1.1):
 - `manifest.json` and `apple-touch-icon`/`icon-*` PWA assets are
   referenced in the HTML but never uploaded to GitHub Pages → 404s.
-  Tracked as Phase 2 of the roadmap (production infrastructure).
+  Tracked as Phase 2 of the roadmap.
