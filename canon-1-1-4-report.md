@@ -243,19 +243,81 @@ cards, or a re-introduced streaming feature with paid TMDB), the
 worker pattern is the model to start from — see git history for the
 deleted code.
 
+## Step 1.1.7 — Account deletion path (2026-05-07)
+
+**Severity: HIGH (legal blocker).** Apple App Store Guideline 5.1.1(v)
+requires apps that support account creation to also support in-app
+account deletion. Without this, App Store rejection.
+
+### Compliance verification (recorded for future revisits)
+
+Before building, confirmed no formal audit-log mandate at this scope:
+
+| Regime | Audit-log mandate? |
+|---|---|
+| Apple Guideline 5.1.1(v) | No |
+| GDPR Art. 17 | No |
+| GDPR Art. 30 (records of processing) | Only at 250+ employees / high-risk processing |
+| CCPA §1798.105 | No deletion-log mandate |
+| Other US state privacy laws (CO/CT/UT/VA) | No |
+| SOC 2 / ISO 27001 | Voluntary commercial certs, not pursued |
+
+Skipped audit log for v1. Revisit if/when Canon adds enterprise tier,
+crosses GDPR Art. 30 thresholds, pursues SOC 2 / ISO 27001, or handles
+special-category data.
+
+### Automated controls (verified by this run)
+
+| Control | Status | Evidence |
+|---|---|---|
+| `_canonAuthFns.reauthenticate(password)` helper | ✅ | Uses `firebase.auth.EmailAuthProvider.credential(...)` + `reauthenticateWithCredential` |
+| `_canonAuthFns.deleteAccount()` helper | ✅ | Firestore-doc delete BEFORE `user.delete()` (idempotent on retry); orphan-doc avoidance |
+| `clearLocalCloudState()` shared helper | ✅ | Extracted from `doSignOut`; called by `doDeleteAccount` and `doDeleteReauth` |
+| `AUTH_VIEW` state machine: `main` / `delete-confirm` / `delete-reauth` / `delete-success` | ✅ | `setAuthView()` + reset to `main` in `closeAuthModal` |
+| Type-to-confirm UI (must type account email exactly) | ✅ | `updateDeleteButton` toggles enabled state; double-checked in `doDeleteAccount` defense in depth |
+| `auth/requires-recent-login` triggers re-auth modal flow | ✅ | `doDeleteAccount` catch sets view to `delete-reauth`; user retries via `doDeleteReauth` |
+| Local state cleared on successful delete (SEEN, MY_SCORES, MY_REVIEWS + localStorage keys) | ✅ | `clearLocalCloudState()` after Firebase deletion |
+| Success state shown for 3s then modal auto-closes | ✅ | `setTimeout(closeAuthModal, 3000)` |
+| Firestore rule allows user to delete their own doc | ✅ | Existing `allow read, write` covers delete; rule unchanged |
+| Inline scripts parse | ✅ | 2/0 |
+| Manual UI test: 12-step flow incl. cancellation paths, Firebase Console verification | ✅ | User confirmed |
+
+### Notes for future maintenance
+
+- **Firestore-doc-first ordering matters.** The Firestore rule requires
+  `request.auth.uid == userId`. After `user.delete()`, the auth token
+  may invalidate before the next request. Doing Firestore delete first,
+  while we still have a valid auth context, avoids that race.
+- **The orphan case** is handled idempotently. If `user.delete()` throws
+  `requires-recent-login` after the Firestore delete, the doc is already
+  gone; the second attempt's Firestore delete is a no-op (Firestore
+  deletes are idempotent on missing docs), and `user.delete()` runs
+  fresh after re-auth.
+- The `closeAuthModal` change (resets `AUTH_VIEW = 'main'`) is critical
+  — without it, a partial delete-confirm flow that the user closes
+  without confirming would leave the modal in delete-confirm state
+  next time it opens. That's a subtle regression risk in any future
+  edits to the auth modal.
+
 ## Files updated (cumulative through 2026-05-07)
 
 | File | Size | sha256 | Latest change |
 |---|---|---|---|
-| `index.html` | 2,098,838 | `4b1292e8e43615c01bd99996df46c25f2709a3d1088edc6506c767cabf66d81e` | 1.1.3 — TMDB code removed; CSP swaps TMDB hosts for Wikipedia/Wikimedia |
+| `index.html` | 2,107,618 | `854603a561a09d374f377bc321ac7186f5511404c18e707d9a9989af21a68d18` | 1.1.7 — account deletion path |
 | `firestore.rules` | 757 | `c680ea80f7fe59f3eace8c4ff4950adcb44950a4f77f0d480dc694110deeea63` | unchanged since 1.1.5 |
 
 ## Next step
 
-With 1.1.3 closed by removal, the remaining §1.1 items are:
-- **1.1.7** (account deletion, HIGH — Apple legal blocker, ~1 day)
-- **1.1.8** (data export, MEDIUM legal — GDPR/CCPA, ~½ day)
+With 1.1.7 closed, only one §1.1 item remains:
+- **1.1.8** (data export, MEDIUM legal — GDPR Art. 20 / CCPA, ~½ day)
+
+Plus the deferred follow-up:
 - **1.1.2 Phase 2** (refactor ~91 inline handlers; drop `'unsafe-inline'` for scripts) — LOW security improvement, multi-day refactor
+
+After 1.1.8, **all of §1.1 will be closed** and the app will be ready
+for App Store submission (legally and security-wise) modulo the
+1.1.2 Phase 2 hardening and Phase 2-3 of the broader roadmap (backend
+infrastructure, native shell).
 
 Pre-existing issues (not §1.1, but flagged by strategic plan):
 - `manifest.json` and `apple-touch-icon`/`icon-*` PWA assets are
