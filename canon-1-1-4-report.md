@@ -412,6 +412,33 @@ this pass mops up the remaining items.
 
 The app is now legally and security-wise launchable for §1.1's scope.
 
+## §1.3 — UX Refinements (in progress, started 2026-05-08)
+
+§1.3 isn't security; it's retention. Plan calls these out as items
+that "materially affect retention metrics that matter for app-store
+ranking and ad efficiency."
+
+### Items closed so far
+
+| Item | Status | What changed |
+|---|---|---|
+| Review system "Set the Presses" overpromise | ✅ 2026-05-08 | Button renamed to **"🗞 Format as Newspaper"** at both call sites. Disabled-state label "Printing…" → "Formatting…". Placeholder framing changed from "transform your notes into a full newspaper review" to "format your notes into newspaper-style columns" — honest about what `generateNewspaperReview` actually does (paragraph splitting + dropcap + columns). Hint text "newspaper page is generated fresh" → "laid out fresh". |
+| Empty states / 3-step welcome | ✅ 2026-05-08 | New `#canonWelcomeCard` above the grid. Two visual states: (1) `SEEN.size < 5` shows "Step 1 of 3 — Build your collection" with progress bar; (2) `SEEN.size ≥ 5` shows "✓ Step 1 complete" with guidance for steps 2 (open My Canon Closet) and 3 (write first review). Auto-hides when first review exists or user dismisses. Persisted via `canon_onboarding_complete_v1` localStorage flag. Re-renders on `toggleSeenBtn` and after `submitReview`. |
+
+### Items still open
+
+- **Search typeahead** — search bar currently filters on each keystroke; add a top-5-matches dropdown
+- **Streak / progress visualizations** — decade heatmap, genre radar, era completion bars, director frequency
+- **Canon Card share-sheet** — flagged in plan as "your single highest-leverage growth feature." Server-side OG-image generation is the cleanest path; client-side canvas fallback is smaller scope.
+- **Accessibility pass** — font sizes 6–8px in `font-mono` likely fail WCAG AA contrast/readability; ARIA landmarks, `lang` attrs on non-English byline names
+- **iOS dark mode** — add `prefers-color-scheme: dark` variant using existing CSS-variable system
+
+### Files updated
+
+| File | Size | sha256 | Change |
+|---|---|---|---|
+| `index.html` | 2,117,747 | `00464b38d5f731fea18235490c60d32b22546616ec24ed217732461f368e721a` | §1.3 — review-button rename + welcome card |
+
 ## 1.1.2 Phase 2 — closed as "won't fix at current scale" (2026-05-07)
 
 After scoping the work, decided not to pursue the inline-handler refactor at this stage. Documenting the rationale here so a future agent or revisit doesn't re-propose without context.
