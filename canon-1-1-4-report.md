@@ -350,6 +350,53 @@ User feedback: the percentage suffixes in labels like "Institutional (23%)", "Bo
 | `index.html` | 2,109,868 | `15844f76b5a1e1457e9eeba44d5a9f525c9d847c4e3117b16abdb9945e17baea` | 1.1.8 + poster cache v9 + UI cleanup |
 | `firestore.rules` | 757 | `c680ea80f7fe59f3eace8c4ff4950adcb44950a4f77f0d480dc694110deeea63` | unchanged since 1.1.5 |
 
+## §1.2 — Data Validation Gaps (2026-05-07)
+
+Closes the residual data-validation surfaces flagged by the strategic
+plan. Most of §1.2 was already closed as side effects of §1.1 work;
+this pass mops up the remaining items.
+
+### Scoreboard against the plan's 6 surfaces
+
+| Surface | Status | Where |
+|---|---|---|
+| Review notes (`raw`) — length cap 8KB | ✅ done in 1.1.1 | `submitReview` slice(0, 8000) + `<textarea maxlength="8000">` |
+| Review notes (`raw`) — control-char strip | ✅ done in 1.2 | `stripControlChars()` applied in `submitReview` and `sanitizeCloudReviews` |
+| Review notes (`raw`) — UTF-8 validation | ⚠ deferred | low realistic risk; lone surrogates are written through. Could add later via `String.fromCodePoint(...).replace(...)` if abuse appears. |
+| Edited `prose` — same caps + control-char strip | ✅ | derived from `raw` so inherits caps; cloud sanitizer applies strip independently |
+| Edited `prose` — never via `innerHTML` | ⚠ mitigated by 1.1.1 `escapeHtml`, not refactored to `textContent` | strict refactor would close 1.1.2 Phase 2 too; deferred |
+| Reviewer byline — escape on render | ✅ done in 1.1.1 | `escapeHtml(byline)` at all 3 render sites |
+| Reviewer byline — 40-char cap | ✅ done in 1.2 | `getReviewByline` truncates to 40 + strips control chars; `sanitizeCloudReviews` `MAX_BYLINE = 40` (was 200) |
+| TMDB API responses validation | ✅ N/A | TMDB integration removed entirely in 1.1.3 |
+| `localStorage` quota — try/catch on all setItem | ✅ done in 1.2 | All 9 cloud-sync + sav* sites route through `safeSetItem`; 2 minor sites (poster cache, runtime overrides) keep their existing inline try/catch (low-volume) |
+| `localStorage` quota — graceful "storage full" UX | ✅ done in 1.2 | One-time red banner top-of-page on first `QuotaExceededError`, dismissible with ✕ |
+| URL query params allowlist (manifest shortcut) | ✅ already safe | Handler at line 8180 only accepts strict `'film'`/`'tv'` strings via equality check; anything else falls through |
+
+### Automated controls (verified by this run)
+
+| Control | Status | Evidence |
+|---|---|---|
+| `function stripControlChars(s)` helper exists | ✅ | strips `\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F` (keeps `\t`/`\n`/`\r`) |
+| `function safeSetItem(key, value)` helper exists | ✅ | wraps `localStorage.setItem`, detects `QuotaExceededError`, fires one-time banner |
+| `function showStorageFullBanner()` helper exists | ✅ | inserts dismissible red banner above content |
+| `_canonStorageWarningShown` flag prevents repeat banners | ✅ | first quota error only |
+| `submitReview` strips control chars on raw input | ✅ | `stripControlChars(ta.value.trim().slice(0, 8000))` |
+| `sanitizeCloudReviews` strips control chars on raw / prose / byline / date | ✅ | applied at every string field |
+| `sanitizeCloudReviews` byline cap is 40 (not 200) | ✅ | `MAX_BYLINE = 40` |
+| `getReviewByline` truncates to 40 chars + strips control chars | ✅ | `cap()` helper inside the function |
+| `saveSeenSet`, `saveMyScores`, `saveMyReviews` route through `safeSetItem` | ✅ | all top-level local savers |
+| Sign-in initial-pull localStorage writes route through `safeSetItem` | ✅ | `seen_v1`, `my_scores_v1`, `my_reviews_v1` |
+| `onSnapshot` localStorage writes route through `safeSetItem` | ✅ | same 3 keys |
+| Inline scripts parse | ✅ | 2/0 |
+| Manual UI test: standard flows still work | ✅ | User confirmed |
+
+### Files updated
+
+| File | Size | sha256 | Change |
+|---|---|---|---|
+| `index.html` | 2,112,630 | `cc1e0b88581551dbe96c05008651cfdefd22dfbe02920a4a27182db342b286ac` | §1.2 — control-char strip, byline 40-cap, safeSetItem + storage-full banner |
+| `firestore.rules` | 757 | `c680ea80f7fe59f3eace8c4ff4950adcb44950a4f77f0d480dc694110deeea63` | unchanged since 1.1.5 |
+
 ## §1.1 status — DONE (8 of 8 closed)
 
 | # | Severity | Closed |
@@ -371,7 +418,8 @@ The app is now legally and security-wise launchable for §1.1's scope.
   then drop `'unsafe-inline'` from `script-src`. LOW security improvement
   (incremental hardening), multi-day refactor. No urgency since the
   current CSP still helps.
-- **§1.2 Data validation gaps** — partial; still open: control-char strip on review notes, byline length cap (currently 200, plan wants 40), `localStorage` quota handling, URL param allowlist. Not blockers.
+- **§1.2 UTF-8 lone-surrogate handling** — deferred; low realistic risk.
+- **§1.2 prose-via-innerHTML refactor** — deferred; mitigated by escapeHtml; full refactor overlaps with 1.1.2 Phase 2.
 - **§1.3 UX refinements** — 7 items including the Canon Card share-sheet (highest-leverage growth feature per plan). Not security; affects retention.
 - **Strategic plan Phase 2** (production infrastructure): backend, manifest.json + PWA assets upload, observability, CI/CD.
 - **Strategic plan Phase 3** (native shell): Capacitor wrapper, Sign in with Apple, push notifications. Required for App Store submission alongside the §1.1 work that just closed.
