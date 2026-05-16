@@ -7598,7 +7598,10 @@ function escapeHtml(s){
 // truncate logs, or render as zero-width characters.
 function stripControlChars(s){
   if(typeof s !== 'string') return s;
-  return s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, '');
+  s = s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, '');
+  // Replace lone UTF-16 surrogates with U+FFFD to prevent WTF-8 in Firestore
+  s = s.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '�');
+  return s;
 }
 
 // 1.2 localStorage quota handling — wrap setItem so a single full-storage
@@ -9111,7 +9114,7 @@ function renderReviewForm(d){
       </div>
       <div class="review-form-actions">
         <button class="review-submit-btn" id="reviewSubmitBtn_${d.id}" onclick="submitReview(${d.id})">
-          🗞 Print as Newspaper
+          Format as Newspaper
         </button>
         <div class="review-loading" id="reviewLoading_${d.id}">
           <span style="font-size:16px">🖨</span>
