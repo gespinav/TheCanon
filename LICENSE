@@ -1,0 +1,80 @@
+The Canon — Proprietary Software License
+========================================
+
+Copyright (c) 2026 Gabe EV. All Rights Reserved.
+
+"The Canon" (the "Software") — including the web application, its source code,
+the Cloud Functions backend, the curated Top 500 film and television dataset and
+all accompanying editorial content (reviews, quotations, scores, rankings and
+metadata compilations), the user interface design, layout, typography and visual
+presentation, and all documentation — is the exclusive property of the copyright
+holder and is protected by copyright law and international treaties.
+
+NO LICENSE IS GRANTED
+---------------------
+
+This repository is publicly readable. Public visibility is NOT a grant of
+license. No right to use, copy, modify, merge, publish, distribute, sublicense,
+create derivative works from, or sell any part of the Software is granted,
+whether express, implied, by estoppel, or otherwise, except as stated below.
+
+You MAY:
+
+  1. View and read the source code for personal, educational, and reference
+     purposes.
+  2. Fork this repository within GitHub to the extent required by the GitHub
+     Terms of Service, solely to view, evaluate, or propose contributions back
+     to this project.
+
+You MAY NOT, without prior written permission from the copyright holder:
+
+  1. Use the Software or any portion of it in any product or service, whether
+     commercial or non-commercial.
+  2. Copy, reproduce, redistribute, publish, host, or deploy the Software or any
+     substantial portion of it, including deploying a copy to any domain.
+  3. Create derivative works, adaptations, ports, translations, or rebrandings.
+  4. Extract, scrape, republish, or redistribute the curated dataset or the
+     editorial content, in whole or in substantial part, whether from this
+     repository, the deployed application, its network responses, or any cache.
+  5. Remove, obscure, or alter any copyright, license, or attribution notice.
+  6. Use the name "The Canon", or any associated names, logos, icons, or trade
+     dress, in a manner likely to cause confusion as to source or endorsement.
+
+EDITORIAL CONTENT AND DATABASE RIGHTS
+-------------------------------------
+
+The selection, arrangement, coordination, scoring and curation of the titles in
+this project constitute an original compilation protected independently of the
+underlying factual data, including under 17 U.S.C. § 103 and, where applicable,
+sui generis database rights. Individual quotations from third-party publications
+are reproduced under fair use / fair dealing with attribution, remain the
+property of their respective rights holders, and are not licensed onward by this
+notice.
+
+THIRD-PARTY COMPONENTS
+
+Third-party libraries and services used by the Software remain governed by their
+own licenses. This license applies only to the original work of the copyright
+holder.
+
+NO WARRANTY
+-----------
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE COPYRIGHT
+HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+ENFORCEMENT
+-----------
+
+Unauthorized use is copyright infringement and will be pursued, including by
+DMCA takedown notice to GitHub, hosting providers, and application stores.
+
+LICENSING ENQUIRIES
+-------------------
+
+To request a license for any use not permitted above, contact:
+gespinavelosa@gmail.com

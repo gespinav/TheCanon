@@ -1,0 +1,23 @@
+{
+  "name": "the-canon",
+  "version": "1.0.0",
+  "private": true,
+  "description": "The Canon — native shell (Capacitor) wrapping the single-file PWA",
+  "scripts": {
+    "build:web": "node scripts/build-web.mjs",
+    "sync": "npm run build:web && cap sync",
+    "sync:android": "npm run build:web && cap sync android",
+    "cap": "cap"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.0.0",
+    "@capacitor/app": "^8.0.0",
+    "@capacitor/core": "^8.0.0",
+    "@capacitor/haptics": "^8.0.0",
+    "@capacitor/ios": "^8.4.1",
+    "@capacitor/share": "^8.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.0.0"
+  }
+}

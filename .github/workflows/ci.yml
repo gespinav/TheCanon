@@ -1,0 +1,120 @@
+name: CI
+
+# §3.7 — validation gate. Runs on every push and pull request. No deploy here
+# (production is published separately); this only proves the artifact is sound:
+# the inline scripts parse, JSON config is valid, the Cloud Functions compile,
+# and the app shell + PWA assets serve.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+# A newer push to the same branch/PR cancels the older in-flight run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate web app
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # Parses the two inline scripts, validates JSON, checks sw.js, asserts
+      # every referenced icon exists, and HTTP-smokes the shell + assets.
+      - name: Run validation gate
+        run: node tools/ci-validate.mjs
+
+  functions-build:
+    name: Build Cloud Functions
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: functions
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      # tsc type-checks + compiles src/index.ts; fails the build on any TS error.
+      - name: Type-check & compile
+        run: npm run build
+
+  android-build:
+    name: Build Android (debug APK)
+    runs-on: ubuntu-latest
+    # Heavy (Gradle) — only on main and manual runs, so feature pushes stay fast.
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          # Capacitor 8 / AGP 8.13 compiles against Java 21.
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      # Capacitor targets compileSdk 36 (Android 16) — install it explicitly.
+      - name: Install Android SDK platform 36
+        run: sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+      - name: Install JS deps
+        run: npm ci
+      # Copies the root PWA into www/ and syncs it into the native project.
+      - name: Build web bundle + sync native
+        run: npm run sync:android
+      - name: Assemble debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: the-canon-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+  ios-build:
+    name: Build iOS (simulator, unsigned)
+    runs-on: macos-latest
+    # Manual only — macOS is slow and iOS isn't the active dev path yet.
+    # Free on this public repo. The ios/ project is generated on the runner
+    # (CocoaPods/Xcode aren't available on the Linux dev box).
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install JS deps
+        run: npm ci
+      - name: Build web bundle + add/sync iOS platform
+        run: |
+          npm run build:web
+          npx cap add ios
+          npx cap sync ios
+      # Compile for the simulator with signing disabled — proves the native
+      # iOS app builds without needing an Apple Developer account/cert.
+      # Capacitor 8 uses Swift Package Manager (no CocoaPods/.xcworkspace) —
+      # build the .xcodeproj; xcodebuild resolves the SPM packages itself.
+      - name: Build app for iOS Simulator (unsigned)
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -skipPackagePluginValidation \
+            CODE_SIGNING_ALLOWED=NO \
+            build

@@ -1,0 +1,35 @@
+{
+  "id": "/TheCanon/",
+  "name": "The Canon — Top 500 Film & Television",
+  "short_name": "The Canon",
+  "description": "Track your progress through a curated canon of the 500 greatest films and television series, 1926–2026. Composite-scored, era-balanced, with newspaper-aesthetic personal reviews.",
+  "lang": "en-US",
+  "dir": "ltr",
+  "start_url": "/TheCanon/",
+  "scope": "/TheCanon/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0F0F0E",
+  "theme_color": "#0F0F0E",
+  "categories": ["entertainment", "lifestyle", "books"],
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
